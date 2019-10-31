@@ -25,10 +25,27 @@
 This delegate the actual running of the plugins to a subprocess to avoid any
 memory buildup.
 """
-
-
+from logging import getLogger
+try:
+    from posttroll.listener import ListenerContainer
+except ImportError:
+    ListenerContainer = None
+from six.moves.queue import Empty as queue_empty
 import ast
+import yaml
+try:
+    from yaml import UnsafeLoader, BaseLoader
+except ImportError:
+    from yaml import Loader as UnsafeLoader
+    from yaml import BaseLoader
+import os
+from multiprocessing import Process, Queue
+from trollflow2.dict_tools import gen_dict_extract, plist_iter
+from trollflow2.plugins import AbortProcessing
+from collections import OrderedDict
 import copy
+from six.moves.urllib.parse import urlparse
+import traceback
 import gc
 import re
 import traceback
@@ -113,14 +130,28 @@ def run(prod_list, topics=None, test_message=None):
             return
         except Empty:
             continue
-
-        proc = Process(target=process, args=(msg, prod_list))
+        q = Queue()
+        proc = Process(target=process, args=(msg, prod_list, q))
         proc.start()
         proc.join()
+        while not q.empty():
+            list_of_files = []
+            x = q.get()
+            if os.path.isfile(x):
+                  list_of_files.extend((x, os.path.getsize(x)))
+                  for result in list_of_files:
+                      if result in list_of_files:
+                         print(result)
+                         LOG.info("Data published")
+            else:
+                print("Files missing")
+                LOG.info("Data missing")  
+       
         if tmessage:
-            break
+           break
 
-
+        return list_of_files
+  
 def get_area_priorities(product_list):
     """Get processing priorities and names for areas."""
     priorities = {}
@@ -179,7 +210,7 @@ def expand(yml):
     return yml
 
 
-def process(msg, prod_list):
+def process(msg, prod_list, q):
     """Process a message."""
     try:
         with open(prod_list) as fid:
@@ -189,6 +220,7 @@ def process(msg, prod_list):
         for prio in sorted(jobs.keys()):
             job = jobs[prio]
             job['processing_priority'] = prio
+            job['qfilename'] = q
             try:
                 for wrk in config['workers']:
                     cwrk = wrk.copy()

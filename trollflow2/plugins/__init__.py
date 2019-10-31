@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 # Copyright (c) 2019 Pytroll developers
@@ -29,6 +29,7 @@ from urllib.parse import urlunsplit
 
 import dpath
 import rasterio
+from multiprocessing import Process, Queue
 from posttroll.message import Message
 from posttroll.publisher import NoisyPublisher
 from pyorbital.astronomy import sun_zenith_angle
@@ -173,7 +174,7 @@ def prepared_filename(fmat, renames):
         yield orig_filename
 
 
-def save_dataset(scns, fmat, fmat_config, renames):
+def save_dataset(job, scns, fmat, fmat_config, renames):
     """Save one dataset to file, not doing the actual computation."""
     obj = None
     try:
@@ -199,6 +200,7 @@ def save_dataset(scns, fmat, fmat_config, renames):
         LOG.info('Skipping %s: %s', fmat['product'], str(err))
     else:
         fmat_config['filename'] = renames.get(filename, filename)
+        job['qfilename'].put(fmat_config['filename'])
     return obj
 
 
@@ -229,7 +231,7 @@ def save_datasets(job):
 
     with renamed_files() as renames:
         for fmat, fmat_config in plist_iter(job['product_list']['product_list'], base_config):
-            obj = save_dataset(scns, fmat, fmat_config, renames)
+            obj = save_dataset(job, scns, fmat, fmat_config, renames)
             if obj is not None:
                 objs.append(obj)
 

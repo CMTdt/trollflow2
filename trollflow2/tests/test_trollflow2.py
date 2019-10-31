@@ -22,14 +22,18 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 """Test plugins."""
 
-import datetime as dt
-import os
+
+
 import unittest
+import os
+import yaml
+try:
+    from yaml import UnsafeLoader
+except ImportError:
+    from yaml import Loader as UnsafeLoader
 from unittest import mock
-
+import datetime as dt
 from trollflow2.tests.utils import TestCase
-
-
 yaml_test1 = """
 product_list:
   something: foo
@@ -320,10 +324,16 @@ class TestSaveDatasets(TestCase):
         self.maxDiff = None
         from trollflow2.launcher import yaml, UnsafeLoader
         from trollflow2.plugins import save_datasets
+        from trollflow2.plugins import Process, Queue
         job = {}
         job['input_mda'] = input_mda
+        q = mock.MagicMock()
+        Process.return_value = q
+        job['qfilename'] = mock.MagicMock()
+        Process.return_value = job['qfilename']
         job['product_list'] = {
             'product_list': yaml.load(yaml_test_save, Loader=UnsafeLoader)['product_list'],
+        
         }
         job['resampled_scenes'] = {}
         for area in job['product_list']['product_list']['areas']:
@@ -331,6 +341,7 @@ class TestSaveDatasets(TestCase):
         with mock.patch('trollflow2.plugins.compute_writer_results'),\
                 mock.patch('trollflow2.plugins.DatasetID') as dsid,\
                 mock.patch('os.rename') as rename:
+
             save_datasets(job)
             expected_sd = [mock.call(dsid.return_value, compute=False,
                                      filename='/tmp/satdmz/pps/www/latest_2018/NOAA-15_20190217_0600_euron1_in_fname_ctth_static.png',  # noqa
